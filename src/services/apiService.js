@@ -68,6 +68,30 @@ class ApiService {
       }, 300);
     });
   }
+
+  /**
+   * @method addEmployee
+   * @description Simulates adding a new employee to the data store.
+   * Generates a simple unique ID.
+   * @param {Object} newEmployeeData - The data for the new employee (name, department, designation, salary).
+   * @returns {Promise<Object>} A promise that resolves with the newly added employee object.
+   */
+  async addEmployee(newEmployeeData) {
+    return new Promise(resolve => {
+      setTimeout(() => {
+        // Generate a simple unique ID (for mock purposes)
+        const newId = (MOCK_EMPLOYEES.length + 1).toString();
+        const employee = {
+          id: newId,
+          ...newEmployeeData,
+          receivedSalary: newEmployeeData.receivedSalary || false // Default to false if not provided
+        };
+        MOCK_EMPLOYEES.push(employee);
+        console.log('New employee added:', employee);
+        resolve({ ...employee });
+      }, 300);
+    });
+  }
 }
 
 export const apiService = new ApiService();

@@ -3,6 +3,7 @@ import { UserList } from '../../components/userList/userList';
 import { SalaryModule } from '../../components/salaryModule/salaryModule';
 import { renderComponent } from '../../utils/domInjector';
 import { apiService } from '../../services/apiService';
+import { navigateTo } from '../../router/router'; // Import navigateTo
 
 /**
  * @class Dashboard
@@ -26,12 +27,15 @@ export class Dashboard {
   render() {
     this.container.innerHTML = `
       <h2 class="mb-4">HR Dashboard Overview</h2>
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3>Employee List</h3>
+        <button id="add-user-btn" class="btn btn-success">Add New Employee</button>
+      </div>
       <div class="row">
         <div class="col-md-8">
           <div class="card mb-4">
             <div class="card-header">
-              <h3>Employee List</h3>
-            </div>
+              </div>
             <div class="card-body" id="user-list-container">
               </div>
           </div>
@@ -47,6 +51,11 @@ export class Dashboard {
         </div>
       </div>
     `;
+
+    // Attach event listener for the "Add New Employee" button
+    this.container.querySelector('#add-user-btn').addEventListener('click', () => {
+      navigateTo('/add-employee'); // Navigate to the new add employee page
+    });
 
     // Once the basic structure is in place, inject the child components
     this.injectComponents();

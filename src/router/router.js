@@ -2,6 +2,7 @@
 import { renderComponent, clearComponent } from '../utils/domInjector';
 import { Dashboard } from '../layouts/dashboard/dashboard';
 import { EmployeeDetails } from '../components/employeeDetails/employeeDetails';
+import { AddEmployee } from '../components/addEmployee/addEmployee'; // New import
 
 /**
  * @private
@@ -20,6 +21,7 @@ const routes = {
   '/': () => new Dashboard().render(), // Dashboard is the default view
   '/dashboard': () => new Dashboard().render(),
   '/employee/:id': (params) => new EmployeeDetails(params.id).render(), // Employee details page
+  '/add-employee': () => new AddEmployee().render(), // New Add Employee route
 };
 
 /**
@@ -102,11 +104,6 @@ const router = async () => {
   }
 
   clearComponent(mainContentContainer); // Clear previous content
-
-  // *** IMPORTANT CHANGE HERE ***
-  // Await the result of the component's render method,
-  // as it returns a Promise because Dashboard/EmployeeDetails.render() are async.
-  const componentToRender = await match(params); // <--- ADD AWAIT HERE
-
-  renderComponent(mainContentContainer, componentToRender); // Now componentToRender will be an HTMLElement
+  const componentToRender = await match(params); // Await the component's render method
+  renderComponent(mainContentContainer, componentToRender); // Render it
 };

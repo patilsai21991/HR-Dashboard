@@ -12,16 +12,20 @@ import { navigateTo } from '../../router/router';
  */
 export class FormComponent {
   /**
-   * @param {Object} employeeData - The initial data to populate the form fields.
-   * @param {string} employeeId - The ID of the employee being edited.
+   * @param {Object} employeeData - The initial data to populate the form fields (null for new employee).
+   * @param {string} employeeId - The ID of the employee being edited (null for new employee).
    */
   constructor(employeeData, employeeId) {
     this.employeeData = employeeData || {};
     this.employeeId = employeeId;
+    this.isEditMode = !!employeeId; // True if employeeId is provided, false for new user
     this.container = document.createElement('form');
     this.container.className = 'employee-form needs-validation'; // Bootstrap validation class
-    this.isSalaryViewVisible = false; // State for salary chart/module visibility
-    this.isSalaryFieldVisible = false; // New state for salary input field visibility
+
+    // For new user, salary field should be visible by default
+    this.isSalaryFieldVisible = !this.isEditMode; // Initially visible for Add mode, hidden for Edit mode
+    this.isSalaryViewVisible = false; // Salary chart/module initially hidden
+
     this.salaryPopupContainer = null; // To hold the salary module instance
   }
 
@@ -35,6 +39,7 @@ export class FormComponent {
 
     // Determine initial display style for the salary input group
     const salaryInputDisplayStyle = this.isSalaryFieldVisible ? 'block' : 'none';
+    const viewButtonText = this.isSalaryFieldVisible ? 'Hide Salary Field & Chart' : 'Show Salary Field & Chart';
 
     this.container.innerHTML = `
       <div class="mb-3">
@@ -71,7 +76,7 @@ export class FormComponent {
         </div>
         <div>
           <button type="button" class="btn btn-info" id="viewSalaryBtn">
-            ${this.isSalaryFieldVisible ? 'Hide Salary Field' : 'Show Salary Field'}
+            ${viewButtonText}
           </button>
         </div>
       </div>
@@ -104,7 +109,6 @@ export class FormComponent {
 
     // Add input event listeners for real-time validation feedback
     // Only add for visible fields initially, or handle visibility dynamically
-    // For now, we'll keep it simple and ensure validation runs on all fields during submit
     ['employeeName', 'employeeDepartment', 'employeeDesignation', 'employeeSalary'].forEach(id => {
         const input = this.container.querySelector(`#${id}`);
         if (input) {
@@ -115,7 +119,7 @@ export class FormComponent {
 
   /**
    * @method handleSubmit
-   * @description Handles the form submission, performs validation, and updates employee data.
+   * @description Handles the form submission, performs validation, and updates/adds employee data.
    * @param {Event} event - The submit event.
    */
   async handleSubmit(event) {
@@ -133,16 +137,30 @@ export class FormComponent {
     }
 
     try {
-      const updatedEmployee = await apiService.updateEmployee(this.employeeId, formData);
-      if (updatedEmployee) {
-        alert('Employee details updated successfully!');
-        // Optionally, re-render the dashboard or navigate back
-        navigateTo('/dashboard');
+      let result;
+      if (this.isEditMode) {
+        // Existing employee: update
+        result = await apiService.updateEmployee(this.employeeId, formData);
+        if (result) {
+          alert('Employee details updated successfully!');
+        } else {
+          alert('Failed to update employee details.');
+        }
       } else {
-        alert('Failed to update employee details.');
+        // New employee: add
+        result = await apiService.addEmployee(formData);
+        if (result) {
+          alert('New employee added successfully!');
+        } else {
+          alert('Failed to add new employee.');
+        }
+      }
+
+      if (result) {
+        navigateTo('/dashboard'); // Navigate to dashboard after successful submission
       }
     } catch (error) {
-      console.error('Error updating employee:', error);
+      console.error('Error saving employee:', error);
       alert('An error occurred while saving employee details.');
     }
   }
@@ -183,7 +201,7 @@ export class FormComponent {
     viewSalaryBtn.textContent = this.isSalaryFieldVisible ? 'Hide Salary Field & Chart' : 'Show Salary Field & Chart';
 
     // Conditionally render/clear the salary module chart
-    if (this.isSalaryViewVisible) {
+    if (this.isSalaryViewVisible && this.isEditMode) { // Only show chart for existing employees
       this.renderSalaryModule();
     } else {
       clearComponent(this.salaryPopupContainer); // Clear content when hiding
@@ -194,10 +212,12 @@ export class FormComponent {
   /**
    * @method renderSalaryModule
    * @description Renders the SalaryModule component inside the salary view container.
+   * This is typically only relevant for existing employees.
    */
   renderSalaryModule() {
-    // For individual employee, the SalaryModule will show only their own status.
-    // We create a temporary array for this single employee.
+    // Only render salary module if it's an edit mode and salary view is active
+    if (!this.isEditMode || !this.isSalaryViewVisible) return;
+
     const individualEmployeeArray = [
         {
             id: this.employeeData.id,
@@ -217,17 +237,14 @@ export class FormComponent {
    * @returns {Object} An object containing the current form data.
    */
   getFormData() {
-    // Ensure that if the salary field is hidden, its value is still retrieved
-    // or set to a default/null if it's not meant to be submitted.
-    // For now, we'll retrieve it if it exists in the DOM.
     const salaryInput = this.container.querySelector('#employeeSalary');
     return {
       name: this.container.querySelector('#employeeName').value,
       department: this.container.querySelector('#employeeDepartment').value,
       designation: this.container.querySelector('#employeeDesignation').value,
-      // Safely get salary value. If input is hidden, it might not have a value
-      // or might be empty. Use `|| 0` for numbers.
-      salary: salaryInput ? parseFloat(salaryInput.value) || 0 : 0,
+      // Safely get salary value. If input is hidden, its value might be empty.
+      // If adding a new employee, salary is required, so it will be there.
+      salary: salaryInput && salaryInput.value ? parseFloat(salaryInput.value) : 0,
       receivedSalary: this.container.querySelector('#receivedSalary').checked,
     };
   }
@@ -244,21 +261,11 @@ export class FormComponent {
     let isValid = true;
     let errorMessage = '';
 
-    // Only validate if the field is visible, or if it's a field that's always logically required
-    // For salary, we only validate it if it's visible AND required by the business logic.
-    // Given it's marked 'required' in HTML, it will be validated if visible.
-    // If it's hidden, we might need a separate check during form submission
-    // to determine if it's "required" based on business rules.
-    // For simplicity, current validation `validateRequired` checks if value exists.
-    // If field is hidden and empty, it will fail `validateRequired`.
-
+    // If salary field is hidden, skip real-time validation for it.
+    // Full validation will run on submit.
     if (fieldName === 'salary' && !this.isSalaryFieldVisible) {
-        // If salary field is hidden, we might not want to validate it unless explicitly needed for submission
-        // For this scenario, we assume if it's hidden, it's not being actively edited/validated.
-        // The submit button's validation will catch it if it's required during submission.
         return;
     }
-
 
     if (!validationService.validateRequired(value)) {
       isValid = false;
@@ -306,16 +313,10 @@ export class FormComponent {
    */
   showValidationFeedback(errors) {
     for (const field in errors) {
-      // Only show validation for visible fields, or fields that are always considered
-      // part of the core form. If salary is hidden, we might choose not to highlight its error.
-      // However, for submission, it's still crucial to validate it.
       const inputElement = this.container.querySelector(`#employee${field.charAt(0).toUpperCase() + field.slice(1)}`);
       const feedbackElement = this.container.querySelector(`#${field}Feedback`);
 
       if (inputElement) {
-        // If the field is salary and it's currently hidden, we might not want to visually mark it invalid
-        // immediately, but the error will still be in the `errors` object.
-        // For simplicity, we'll mark it invalid regardless of visibility on submit.
         inputElement.classList.add('is-invalid');
       }
       if (feedbackElement) {
